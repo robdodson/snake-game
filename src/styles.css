@@ -1,0 +1,39 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+table {
+  font-family: monospace;
+  text-align: center;
+  border-collapse: collapse;
+}
+
+tr,
+td {
+  padding: 0;
+}
+
+td {
+  border: 1px solid black;
+  width: 32px;
+  height: 32px;
+}
+
+thead > tr,
+td:first-of-type {
+  background: #ddd;
+}
+
+[data-type='snake'] {
+  background-color: lightseagreen;
+}
+
+[data-type='food'] {
+  background-color: lightsalmon;
+}
+
+[data-type='wall'] {
+  background-color: lightslategrey;
+}
