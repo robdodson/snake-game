@@ -51,27 +51,25 @@ function createSnake(grid) {
   return snake;
 }
 
-const vector = { x: 1, y: 0 };
-
 export default function Grid({ cols, rows }) {
-  const [grid, setGrid] = useState(() => createGrid(cols, rows));
-  const [snake, setSnake] = useState(() => createSnake(grid));
   // status types: pending, playing, stopped
   const [status, setStatus] = useState('pending');
+  const [grid, setGrid] = useState(() => createGrid(cols, rows));
+  const [snake, setSnake] = useState(() => createSnake(grid));
+  const [vector, setVector] = useState({ x: 0, y: 0 });
 
   const updateSnakePosition = useCallback(() => {
     let newSnake = snake.map((cell, i) => {
       if (i === 0) {
         let newCell = getCell(grid, cell.x + vector.x, cell.y + vector.y);
-        // let newCell = { ...getCell(grid, cell.x, cell.y) };
         return newCell;
       }
       return cell;
     });
     setSnake(newSnake);
-  }, [snake, grid]);
+  }, [snake, grid, vector]);
 
-  const updateGrid = useCallback(() => {
+  const drawGrid = useCallback(() => {
     let newGrid = createGrid(cols, rows);
     snake.forEach((snakeCell) => {
       let gridCell = getCell(newGrid, snakeCell.x, snakeCell.y);
@@ -80,16 +78,62 @@ export default function Grid({ cols, rows }) {
     setGrid(newGrid);
   }, [snake, cols, rows]);
 
+  // Force the screen to do an initial update.
+  // This is simulating componentDidMount so we tell the exhaustive deps linter
+  // to chill
+  useEffect(() => {
+    updateSnakePosition();
+    drawGrid();
+    // eslint-disable-next-line
+  }, []);
+
   useEffect(() => {
     const timeout = setTimeout(() => {
-      // Update the snake's position
       updateSnakePosition();
-      // Commit changes to screen
-      updateGrid();
+      drawGrid();
     }, 2000);
 
     return () => clearTimeout(timeout);
-  }, [snake, updateSnakePosition, updateGrid]);
+  }, [snake, updateSnakePosition, drawGrid]);
+
+  useEffect(() => {
+    function updateVector(e) {
+      let newVector;
+      switch (e.key) {
+        case 'ArrowUp':
+          newVector = { x: 0, y: -1 };
+          break;
+        case 'ArrowDown':
+          newVector = { x: 0, y: 1 };
+          break;
+        case 'ArrowLeft':
+          newVector = { x: -1, y: 0 };
+          break;
+        case 'ArrowRight':
+          newVector = { x: 1, y: 0 };
+          break;
+        default:
+          break;
+      }
+
+      // If the user presses the same direction, or the opposite direction,
+      // reject the keypress.
+      if (
+        (Math.abs(newVector.x === 1) && Math.abs(vector.x === 1)) ||
+        (Math.abs(newVector.y === 1) && Math.abs(vector.y === 1))
+      ) {
+        return;
+      }
+
+      setVector(newVector);
+    }
+
+    window.addEventListener('keyup', updateVector);
+
+    return () => {
+      window.removeEventListener('keyup', updateVector);
+    };
+  }, [vector]);
 
   return (
     <div className="Grid">
