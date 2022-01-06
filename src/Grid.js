@@ -1,5 +1,5 @@
 import './styles.css';
-import { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 
 // To build the snake, start with the idx of a random cell in the grid.
 // Every tick, advance the snake using the vector. The snake can not
@@ -41,124 +41,138 @@ function getCell(grid, x, y) {
 
 function createSnake(grid) {
   const snake = [];
-  // const cell = getCell(grid, 0, 0);
-  const cell = getCell(
-    grid,
-    Math.floor(Math.random() * grid.cols),
-    Math.floor(Math.random() * grid.rows)
-  );
+  const cell = getCell(grid, 0, 0);
+  // const cell = getCell(
+  //   grid,
+  //   Math.floor(Math.random() * grid.cols),
+  //   Math.floor(Math.random() * grid.rows)
+  // );
   snake.push({ ...cell });
   return snake;
 }
 
-export default function Grid({ cols, rows }) {
-  // status types: pending, playing, stopped
-  const [status, setStatus] = useState('pending');
-  const [grid, setGrid] = useState(() => createGrid(cols, rows));
-  const [snake, setSnake] = useState(() => createSnake(grid));
-  const [vector, setVector] = useState({ x: 0, y: 0 });
+export default class Grid extends React.Component {
+  constructor(props) {
+    super(props);
 
-  const updateSnakePosition = useCallback(() => {
+    const grid = createGrid(props.cols, props.rows);
+    const snake = createSnake(grid);
+
+    this.state = {
+      status: 'pending',
+      grid,
+      snake,
+      vector: { x: 0, y: 0 },
+    };
+  }
+
+  updateSnakePosition = () => {
+    const { grid, snake, vector } = this.state;
     let newSnake = snake.map((cell, i) => {
       if (i === 0) {
-        let newCell = getCell(grid, cell.x + vector.x, cell.y + vector.y);
+        let newCell;
+        try {
+          newCell = getCell(grid, cell.x + vector.x, cell.y + vector.y);
+        } catch (err) {
+          newCell = cell;
+          this.setState({ status: 'stopped' });
+        }
         return newCell;
       }
       return cell;
     });
-    setSnake(newSnake);
-  }, [snake, grid, vector]);
+    this.setState({ snake: newSnake });
+  };
 
-  const drawGrid = useCallback(() => {
-    let newGrid = createGrid(cols, rows);
+  drawGrid = () => {
+    const { grid, snake } = this.state;
+    let newGrid = createGrid(grid.cols, grid.rows);
     snake.forEach((snakeCell) => {
       let gridCell = getCell(newGrid, snakeCell.x, snakeCell.y);
       gridCell.type = 'snake';
     });
-    setGrid(newGrid);
-  }, [snake, cols, rows]);
+    this.setState({ grid: newGrid });
+  };
 
-  // Force the screen to do an initial update.
-  // This is simulating componentDidMount so we tell the exhaustive deps linter
-  // to chill
-  useEffect(() => {
-    updateSnakePosition();
-    drawGrid();
-    // eslint-disable-next-line
-  }, []);
+  updateVector = (e) => {
+    const { vector } = this.state;
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      updateSnakePosition();
-      drawGrid();
-    }, 2000);
-
-    return () => clearTimeout(timeout);
-  }, [snake, updateSnakePosition, drawGrid]);
-
-  useEffect(() => {
-    function updateVector(e) {
-      let newVector;
-      switch (e.key) {
-        case 'ArrowUp':
-          newVector = { x: 0, y: -1 };
-          break;
-        case 'ArrowDown':
-          newVector = { x: 0, y: 1 };
-          break;
-        case 'ArrowLeft':
-          newVector = { x: -1, y: 0 };
-          break;
-        case 'ArrowRight':
-          newVector = { x: 1, y: 0 };
-          break;
-        default:
-          break;
-      }
-
-      // If the user presses the same direction, or the opposite direction,
-      // reject the keypress.
-      if (
-        (Math.abs(newVector.x === 1) && Math.abs(vector.x === 1)) ||
-        (Math.abs(newVector.y === 1) && Math.abs(vector.y === 1))
-      ) {
-        return;
-      }
-
-      setVector(newVector);
+    let newVector = { ...vector };
+    switch (e.key) {
+      case 'ArrowUp':
+        newVector = { x: 0, y: -1 };
+        break;
+      case 'ArrowDown':
+        newVector = { x: 0, y: 1 };
+        break;
+      case 'ArrowLeft':
+        newVector = { x: -1, y: 0 };
+        break;
+      case 'ArrowRight':
+        newVector = { x: 1, y: 0 };
+        break;
+      default:
+        break;
     }
 
-    window.addEventListener('keyup', updateVector);
+    // If the user presses the same direction, or the opposite direction,
+    // reject the keypress.
+    if (
+      (Math.abs(newVector.x === 1) && Math.abs(vector.x === 1)) ||
+      (Math.abs(newVector.y === 1) && Math.abs(vector.y === 1))
+    ) {
+      return;
+    }
 
-    return () => {
-      window.removeEventListener('keyup', updateVector);
-    };
-  }, [vector]);
+    this.setState({ vector: newVector });
+  };
 
-  return (
-    <div className="Grid">
-      <table>
-        <thead>
-          <tr>
-            <td />
-            {range(cols).map((col) => (
-              <td key={'col-' + col}>{col}</td>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {range(rows).map((row) => (
-            <tr key={'row-' + row}>
-              <td>{row}</td>
+  componentDidMount() {
+    // Draw the initial layout
+    this.updateSnakePosition();
+    this.drawGrid();
+
+    // Start the game loop
+    setInterval(this.tick, this.props.speed);
+
+    // Listen for user input
+    window.addEventListener('keyup', this.updateVector);
+  }
+
+  tick = () => {
+    this.updateSnakePosition();
+    this.drawGrid();
+  };
+
+  render() {
+    const { cols, rows } = this.props;
+    const { grid, status } = this.state;
+    return (
+      <div className="Grid">
+        <div>{status}</div>
+        <table>
+          <thead>
+            <tr>
+              <td />
               {range(cols).map((col) => (
-                <Cell key={row + ',' + col} data={getCell(grid, col, row)} />
+                <td key={'col-' + col}>{col}</td>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+          </thead>
+          <tbody>
+            {range(rows).map((row) => (
+              <tr key={'row-' + row}>
+                <td>{row}</td>
+                {range(cols).map((col) => (
+                  <Cell key={row + ',' + col} data={getCell(grid, col, row)} />
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 }
 
 function Cell({ data }) {
