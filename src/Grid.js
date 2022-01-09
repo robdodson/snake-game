@@ -1,6 +1,10 @@
 import './styles.css';
 import React from 'react';
 
+// TODO:
+// - Add snake segments
+// - Add food
+
 // To build the snake, start with the idx of a random cell in the grid.
 // Every tick, advance the snake using the vector. The snake can not
 // go in an opposite direction (if it's going 1, 0 the next turn it can't go -1, 0)
@@ -33,7 +37,7 @@ function createGrid(cols, rows) {
 }
 
 function getCell(grid, x, y) {
-  if (x > grid.cols || x < 0 || y > grid.rows || y < 0) {
+  if (x >= grid.cols || x < 0 || y >= grid.rows || y < 0) {
     throw new Error(`Out of bound range: ${x}, ${y}`);
   }
   return grid.cells[y * grid.cols + x];
@@ -41,14 +45,21 @@ function getCell(grid, x, y) {
 
 function createSnake(grid) {
   const snake = [];
-  const cell = getCell(grid, 0, 0);
-  // const cell = getCell(
-  //   grid,
-  //   Math.floor(Math.random() * grid.cols),
-  //   Math.floor(Math.random() * grid.rows)
-  // );
+  const cell = getCell(
+    grid,
+    Math.floor(Math.random() * grid.cols),
+    Math.floor(Math.random() * grid.rows)
+  );
   snake.push({ ...cell });
   return snake;
+}
+
+function createFood(grid, snake) {
+  // Remove the snake cells from the grid
+  let cells = [...grid.cells];
+  snake.forEach((segment) => cells.splice(segment.idx, 1));
+  // Return a random empty cell
+  return cells[Math.floor(Math.random() * cells.length)];
 }
 
 export default class Grid extends React.Component {
@@ -56,18 +67,29 @@ export default class Grid extends React.Component {
     super(props);
 
     const grid = createGrid(props.cols, props.rows);
-    const snake = createSnake(grid);
+
+    this.snakeRef = React.createRef();
+    this.snakeRef.current = createSnake(grid);
+
+    this.foodRef = React.createRef();
+    this.foodRef.current = createFood(grid, this.snakeRef.current);
+
+    this.vectorRef = React.createRef();
+    this.vectorRef.current = { x: 0, y: 0 };
+
+    this.intervalRef = React.createRef();
 
     this.state = {
       status: 'pending',
       grid,
-      snake,
-      vector: { x: 0, y: 0 },
     };
   }
 
   updateSnakePosition = () => {
-    const { grid, snake, vector } = this.state;
+    const { grid } = this.state;
+    const { current: snake } = this.snakeRef;
+    const { current: vector } = this.vectorRef;
+
     let newSnake = snake.map((cell, i) => {
       if (i === 0) {
         let newCell;
@@ -81,23 +103,35 @@ export default class Grid extends React.Component {
       }
       return cell;
     });
-    this.setState({ snake: newSnake });
+
+    this.snakeRef.current = newSnake;
   };
 
   drawGrid = () => {
-    const { grid, snake } = this.state;
+    const { grid } = this.state;
+    const { current: snake } = this.snakeRef;
+    const { current: food } = this.foodRef;
+
     let newGrid = createGrid(grid.cols, grid.rows);
     snake.forEach((snakeCell) => {
       let gridCell = getCell(newGrid, snakeCell.x, snakeCell.y);
       gridCell.type = 'snake';
     });
+    newGrid.cells[food.idx].type = 'food';
     this.setState({ grid: newGrid });
   };
 
   updateVector = (e) => {
-    const { vector } = this.state;
-
+    let { current: vector } = this.vectorRef;
+    const { status } = this.state;
     let newVector = { ...vector };
+
+    if (!e.key.startsWith('Arrow')) {
+      return;
+    }
+
+    e.preventDefault();
+
     switch (e.key) {
       case 'ArrowUp':
         newVector = { x: 0, y: -1 };
@@ -118,13 +152,28 @@ export default class Grid extends React.Component {
     // If the user presses the same direction, or the opposite direction,
     // reject the keypress.
     if (
-      (Math.abs(newVector.x === 1) && Math.abs(vector.x === 1)) ||
-      (Math.abs(newVector.y === 1) && Math.abs(vector.y === 1))
+      (Math.abs(newVector.x) === 1 && Math.abs(vector.x) === 1) ||
+      (Math.abs(newVector.y) === 1 && Math.abs(vector.y) === 1)
     ) {
       return;
     }
 
-    this.setState({ vector: newVector });
+    this.vectorRef.current = newVector;
+
+    // If this is the user's first move, we need to force an update
+    // and start the game loop.
+    if (status === 'pending') {
+      this.firstMove();
+    }
+  };
+
+  firstMove = () => {
+    this.setState({ status: 'playing' });
+    // Render the initial move
+    this.updateSnakePosition();
+    this.drawGrid();
+    // Start the game loop
+    this.intervalRef.current = setInterval(this.tick, this.props.speed);
   };
 
   componentDidMount() {
@@ -132,14 +181,16 @@ export default class Grid extends React.Component {
     this.updateSnakePosition();
     this.drawGrid();
 
-    // Start the game loop
-    setInterval(this.tick, this.props.speed);
-
     // Listen for user input
     window.addEventListener('keyup', this.updateVector);
   }
 
   tick = () => {
+    if (this.state.status === 'stopped') {
+      clearInterval(this.intervalRef.current);
+      return;
+    }
+
     this.updateSnakePosition();
     this.drawGrid();
   };

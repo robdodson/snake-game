@@ -5,7 +5,7 @@ import reportWebVitals from './reportWebVitals';
 
 ReactDOM.render(
   <React.StrictMode>
-    <Grid cols={10} rows={10} speed={1000} />
+    <Grid cols={10} rows={10} speed={300} />
   </React.StrictMode>,
   document.getElementById('root')
 );

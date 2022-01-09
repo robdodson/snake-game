@@ -4,6 +4,10 @@
   box-sizing: border-box;
 }
 
+:root {
+  --cell-size: 24px;
+}
+
 table {
   font-family: monospace;
   text-align: center;
@@ -17,8 +21,8 @@ td {
 
 td {
   border: 1px solid black;
-  width: 32px;
-  height: 32px;
+  width: var(--cell-size);
+  height: var(--cell-size);
 }
 
 thead > tr,
